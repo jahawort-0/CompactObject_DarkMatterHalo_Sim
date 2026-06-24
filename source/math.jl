@@ -83,14 +83,14 @@ module Math
         M_WD = mass of the white dwarf.
         M_NS = mass of the neutron star.
     """
-    function Roche_Limit(a,M_WD,M_NS)
-        #returns Roche limit of M_WD for companion of mass M_NS 
+    function Roche_Limit(a,M_1,M_NS2)
+        #returns Roche limit of M_1 = M_NS1 + M_DM for companion of mass M_NS2 
     	#at a separation of distance a 
         
     	#@assert M_WD < M_NS 
     	#@assert a > 0
     	
-    	q=M_WD/M_NS
+    	q=M_1/M_NS2
         q_2_3rds = q^(2.0/3.0)
     	return(a * 0.49*q_2_3rds/(0.6*q_2_3rds+log(1.0+cbrt(q))))
     end
@@ -697,17 +697,20 @@ module Math
     #The next several blocks define functions intended to initiate the orbit beginning at mass transfer for initial masses
     #Next, in Integrate.jl, we will define functions to take an integration step forward calculating waveform and finally to integrate until the White Dwarf dissipates completely.
     """Calculates in km the orbital separation for the white dwarf to overflow its Roche Lobe and begin mass transfer"""
-    function RL_contact(M_WD::Float64,M_NS::Float64; optional=optional_default)::Float64
-        #returns separation at which a donor WD overflows its
-        #Roche Lobe
-        R_WD::Float64 = R0_WD(M_WD;optional=optional_default)
-        RL_a1::Float64 = Roche_Limit(1.,M_WD,M_NS) #roche limit at separation of 1 km
-        return(R_WD / RL_a1)#initial separation in km
+    function RL_contact(M_NS1::Float64,M_NS2::Float64, M_DM::Float64, RealPoly::Any; optional=optional_default)::Float64
+        #returns separation at which the donor DM halo overflows its Roche Lobe
+        R_DM::Float64 = RealPoly.R_DM
+        RL_a1::Float64 = Roche_Limit(1.,(M_NS1 + M_DM),M_NS2) #roche limit at separation of 1 km
+        return(R_DM / RL_a1)#initial separation in km
     end
     
     """Calculates the angular momentum of the system at initial Roche Lobe overflow """	
-    function circular_J(a::Float64,M_WD::Float64,M_NS::Float64)::Float64
+    function circular_J(a::Float64,M_1::Float64,M_NS2::Float64)::Float64
         #returns angular momentum for a circular orbit
-        return(( a * G * M_WD ^ 2.0 * M_NS ^ 2.0 / (M_WD + M_NS))^(1.0/2.0))
+        return(( a * G * M_1 ^ 2.0 * M_NS2 ^ 2.0 / (M_1 + M_NS2))^(1.0/2.0))
+    end
+
+    function cgs_density(density)
+        return (density * 1.988416e30 * 1e3 / 1e9 / 1e6)
     end
 end

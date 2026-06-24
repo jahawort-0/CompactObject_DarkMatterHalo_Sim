@@ -22,7 +22,7 @@ module Integrate
     """
 
 
-    const M_ch=1.44 #Chandresekhar mass in M⊙
+    #const M_ch=1.44 #Chandresekhar mass in M⊙
     const optional_default = (mu_e = 2.0, equation = 1, A = 10.0, poly_shell = false, a_ring_frac = 1.0, mode = :isotropic, eta_acc = 0.1, period_calc = true)
     #`optional` contains optional parameters. In order, these optional parameters are:
     #mu_e=2.0:                     the chemical composition of the white dwarf (for CO/ONeMg, mu_e=2.0/2.35, respectively)
@@ -36,15 +36,14 @@ module Integrate
 
     #Of these, I expect A, poly_shell, mode, and period_calc to have considerable effect on the evolution of the system
 
-    function initial_circular_orbit(M_NS1::Float64, M_NS2::Float64, M_DM; optional=optional_default)::Vector{Float64}
+    function initial_circular_orbit(M_NS1::Float64, M_NS2::Float64, M_DM::Float64, RealPoly::Any; optional=optional_default)::Vector{Float64}
     
         #returns keplerian orbital parameters, theta, at initial Roche Lobe overflow
-        #M_NS=1.35 M_\odot is typical NS mass
-        @assert M_WD<M_ch #Chandrasekar mass, beyond which we cannot calculate R_WD(see initial function)
-        a=Math.RL_contact(M_WD,M_NS;optional=optional)
-        J=Math.circular_J(a,M_WD,M_NS)
-        R_WD=Math.R0_WD(M_WD)
-        return([a, M_WD, M_NS, R_WD, J, 0.])
+
+        a=Math.RL_contact(M_NS1,M_NS2,M_DM,RealPoly;optional=optional)
+        J=Math.circular_J(a,(M_NS1 + M_DM),M_NS2)
+        R_DM=RealPoly.R_DM
+        return([a, M_NS1, M_NS2, M_DM, R_DM, J, 0.])
     end
     
     #"Below is the heart of the integration process"
@@ -552,5 +551,36 @@ module Integrate
         # Apologies for the syntax below, it isn't elegant but it makes the code run
         pairs = [(M_WD, M_NS, mu_e, equation, A, poly_shell, a_ring_frac, mode, eta_acc, period_calc) for M_WD in M_WDs for M_NS in M_NSs for mu_e in mu_es for equation in equations for A in As for poly_shell in poly_shells for a_ring_frac in a_ring_fracs for mode in modes for eta_acc in eta_accs for period_calc in period_calcs]
         return pairs
+    end
+
+    ## New DM halo functions
+    function integrate_halo(ICs,mass_r)
+        #[a, M_NS1, M_NS2, M_DM, R_DM, J, 0.]
+        # a = ICs[1]
+        #M_NS1 = ICs[2]
+        #M_NS2 = ICs[3]
+        #M_DM = ICs[4]
+        #R_DM = ICs[5]
+        #J = ICs[6]
+
+        R_RL = Math.Roche_Limit(ICs[1], (ICs[2]+ICs[4]), ICs[3])
+
+        dM_DM_dt = 1/P * (M_DM - mass_r(R_RL))  #May need a constant
+        #Need to update mass_r each iteration to truncate at new Roche radius
+        #how to do this?
+
+        Mtot = ICs[2] + ICs[3] + ICs[4]
+        mu = (ICs[2] + ICs[4])*ICs[3]/Mtot  #reduced mass
+
+        da_rr_dt = -64 * Math.G^3 * mu * Mtot^2 / (5*Math.c^5*ICs[1]^4)
+
+        dM_a_dt = 0
+
+        beta = abs(dM_a_dt/dM_DM_dt)
+        gamma = (ICs[2]+ICs[4])/ICs[3]  #isotropic reemission
+        da_mt_dt = -2*ICs[1] * dM_DM_dt/(ICs[4]+ICs[2]) * (1- beta*(ICs[2]+ICs[4])/ICs[3] -
+            (1-beta)*(gamma+0.5) * (ICs[2]+ICs[4])/Mtot)
+
+        da_dt = da_rr_dt + da_mt_dt
     end
 end
