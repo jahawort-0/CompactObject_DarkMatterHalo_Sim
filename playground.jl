@@ -89,6 +89,7 @@ M_enclosed = output2.mass_interp(1)
 
 # using analytical solution
 analytical_output = Polytrope.n5apply_polytrope(M_DM,K)
+#analytical_output = Polytrope.apply_polytrope(output,M_DM,M_NS1,K,1)
 radius_range = range(0,5,100)
 
 p1 = plot(radius_range,output2.mass_interp.(radius_range),label="numerical solver")

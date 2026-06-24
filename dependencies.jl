@@ -11,6 +11,7 @@ using DifferentialEquations
 using Printf, DelimitedFiles
 using ForwardDiff
 using LaTeXStrings
+using NamedArrays
 
 #include("source/GW.jl")
 #include("source/install.jl")
