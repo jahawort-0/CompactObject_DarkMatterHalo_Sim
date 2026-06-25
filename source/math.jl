@@ -711,6 +711,10 @@ module Math
     end
 
     function cgs_density(density)
-        return (density * 1.988416e30 * 1e3 / 1e9 / 1e6)
+        return (density * 1.988416e30 / 1e12)
+    end
+
+    function cgs_density_inv(density)
+        return (density / 1.988416e30 * 1e12)
     end
 end

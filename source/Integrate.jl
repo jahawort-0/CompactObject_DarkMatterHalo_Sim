@@ -554,33 +554,66 @@ module Integrate
     end
 
     ## New DM halo functions
-    function integrate_halo(ICs,mass_r)
-        #[a, M_NS1, M_NS2, M_DM, R_DM, J, 0.]
-        # a = ICs[1]
-        #M_NS1 = ICs[2]
-        #M_NS2 = ICs[3]
-        #M_DM = ICs[4]
-        #R_DM = ICs[5]
-        #J = ICs[6]
 
-        R_RL = Math.Roche_Limit(ICs[1], (ICs[2]+ICs[4]), ICs[3])
+    function update_mass_r(mass_r)
 
-        dM_DM_dt = 1/P * (M_DM - mass_r(R_RL))  #May need a constant
-        #Need to update mass_r each iteration to truncate at new Roche radius
-        #how to do this?
+    end
 
-        Mtot = ICs[2] + ICs[3] + ICs[4]
-        mu = (ICs[2] + ICs[4])*ICs[3]/Mtot  #reduced mass
+    function halo_problem!(du,u,p,t)
+        #--------Setup inputs ---------
 
-        da_rr_dt = -64 * Math.G^3 * mu * Mtot^2 / (5*Math.c^5*ICs[1]^4)
+        #du = [dM_DM_dt, da_dt]
+        # u = [M_DM, a]
+        # p = [M_NS1, M_NS2, mass_r]
+        M_DM = u[1]     
+        a = u[2]        
 
-        dM_a_dt = 0
+        M_NS1 = p[1]    
+        M_NS2 = p[2]    
+        mass_r = p[3]
 
-        beta = abs(dM_a_dt/dM_DM_dt)
-        gamma = (ICs[2]+ICs[4])/ICs[3]  #isotropic reemission
-        da_mt_dt = -2*ICs[1] * dM_DM_dt/(ICs[4]+ICs[2]) * (1- beta*(ICs[2]+ICs[4])/ICs[3] -
-            (1-beta)*(gamma+0.5) * (ICs[2]+ICs[4])/Mtot)
+        #--------Setup the model of the system, makes many assumptions ---------
+
+        R_RL = Math.Roche_Limit(a, (M_NS1 + M_DM), M_NS2)
+
+        Mtot = M_NS1 + M_NS2 + M_DM
+        mu = (M_NS1 + M_DM)*M_NS1/Mtot  #reduced mass
+
+        P = Math.period(a, Mtot)
+
+        #dM_DM_dt = -1e-200
+        dM_DM_dt = -10/P * (M_DM - mass_r(R_RL))  #will need A = 10
+        #This works under the assumption that the change in mass is monotonic
+        #For more complicated mass transfer (second halo forming) we need a more complex treatment
+        
+        da_rr_dt = -64 * Math.G^3 * mu * Mtot^2 / (5*Math.c^5*a^3)
+
+        dM_NS2_dt = 0 #Simple assumption that removed mass will leave system
+
+        beta = abs(dM_NS2_dt/dM_DM_dt)
+        gamma = (M_NS1+M_DM)/M_NS2  #isotropic reemission
+
+        da_mt_dt = -2*a * dM_DM_dt/(M_NS1+M_DM) * (1- beta*(M_DM+M_NS1)/M_NS2 -
+            (1-beta)*(gamma+0.5) * (M_NS1+M_DM)/Mtot)
 
         da_dt = da_rr_dt + da_mt_dt
+
+        #dJ_dt = 0  #No change in angular momentum, not a very good assumption
+
+        #---------Define outputs ----------
+        du[1] = dM_DM_dt
+        du[2] = da_dt
     end
+
+    function integrate_halo(u0,p,tspan)
+        #u0: Initial conditions
+        #p: system parameters
+        #tspan: time over which we integrate
+    
+        prob = ODEProblem(halo_problem!, u0, tspan, p)
+        sol = solve(prob)
+
+        return(sol)
+    end
+
 end
