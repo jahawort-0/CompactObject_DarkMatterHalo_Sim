@@ -60,18 +60,20 @@ display(p2)
 """This does all of the above more compactly"""
 n=5
 #rho_0 = 1*10^-8 #Assume a central density
-K = 1e10
+n = 5
+K = 1.5e9
 M_DM = 0.1
-M_NS1 = 1.5
+M_NS1 = 1.35
 
 output = Polytrope.compute_polytrope(n); #calculate polytrope
 output2 = Polytrope.apply_polytrope(output,M_DM,M_NS1,K,n)
 
-p5 = plot(output2.rs,output2.rho_r, xlabel = "Radius [km]", ylabel = L"Density [M_\odot / km^3]")
-display(p5)
-p6 = plot(output2.rs,output2.mass_r, xlabel = "Radius [km]", ylabel = L"Mass\ enclosed [M_\odot]")
+#p5 = plot(output2.rs,output2.rho_r, xlabel = "Radius [km]", ylabel = L"Density [M_\odot / km^3]")
+#display(p5)
+mass_interp = output2.mass_interp
+p6 = plot(output2.rs,mass_interp(output2.rs), xlabel = "Radius [km]", ylabel = L"Mass\ enclosed [M_\odot]",dpi =200)
 display(p6)
-print(output2.rho_r[1])
+#print(output2.rho_r[1])
 
 
 ## Enclosed mass
@@ -80,7 +82,6 @@ n=5
 K = 1e10
 M_DM = 0.1
 M_NS1 = 0
-M_NS2 = 2.5
 
 output = Polytrope.compute_polytrope(n); #calculate polytrope
 output2 = Polytrope.apply_polytrope(output,M_DM,M_NS1,K,n)
@@ -89,7 +90,6 @@ M_enclosed = output2.mass_interp(1)
 
 # using analytical solution
 analytical_output = Polytrope.n5apply_polytrope(M_DM,K)
-#analytical_output = Polytrope.apply_polytrope(output,M_DM,M_NS1,K,1)
 radius_range = range(0,5,100)
 
 p1 = plot(radius_range,output2.mass_interp.(radius_range),label="numerical solver")
@@ -101,3 +101,33 @@ display(p1)
 res = output2.mass_interp.(radius_range) .- analytical_output.mass_interp.(radius_range)
 p2 = plot(radius_range, res,xlabel = "Radius [km]", ylabel = L"Mass\ enclosed [M_\odot]")
 plot!(radius_range,zeros(length(radius_range)))
+
+
+## 06/26 New polytrope solution
+#old first
+n = 5
+K = 1.5e9
+M_DM = 0.1
+
+output = Polytrope.compute_polytrope(n); #calculate polytrope
+output2 = Polytrope.apply_polytrope(output,M_DM,0,K,n)
+
+p1 = plot(output2.rs,output2.rho_r, xlabel = "Radius [km]", ylabel = L"Density [M_\odot / km^3]",dpi = 200)
+
+#Then new
+rho_0 = 4.7869774883664296e-6
+M_NS1 = 1e-8
+R_NS1 = 5
+NS_density = M_NS1 / (4/3*pi*R_NS1^3)
+
+rend = 1000
+# p = [n,K,M_NS1,R_NS1,rho_0]
+# u = [NS_density + rho_0, 0]
+# Polytrope.halo_polytrope_problem2!(du,u,p,1e-8)
+# println(u)
+# println(du)
+
+output3 = Polytrope.solve_halo(n,K,M_NS1,R_NS1,rho_0,rend)
+
+plot!(output3[1,:],output3[2,:],xlim = (0,100))
+display(p1)

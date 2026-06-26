@@ -5,7 +5,6 @@ n = 5
 K = 1.5e9
 M_DM = 0.1
 M_NS1 = 1.35
-M1 = M_DM + M_NS1
 M_NS2 = 1.5
 
 #Initialize Polytrope
@@ -17,10 +16,11 @@ circ_orbit=Integrate.initial_circular_orbit(M_NS1, M_NS2, M_DM, realpoly);  #Sol
 ICs = [circ_orbit[4],circ_orbit[1]];    #[M_DM, a]
 parameters = [circ_orbit[2],circ_orbit[3],realpoly.mass_interp];    #[M_NS1, M_NS2, mass(r)]
 
+M1 = M_DM + M_NS1
 η = (M1*M_NS2)/((M1+M_NS2)^2)
 t_decay = 5/256*((Math.c)^5) * (circ_orbit[1]^4) /(Math.G*(M1+M_NS2))^3/ η
 ## Integration
-tend = 1.6572e5
+tend = 1.65729454e5
 times=range(0,stop=tend,length=1000)
 
 integration_sol=Integrate.integrate_halo(ICs,parameters,(0,tend)); #The -1 tells the function that we are decreasing in separation

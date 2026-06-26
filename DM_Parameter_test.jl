@@ -2,8 +2,8 @@ include("dependencies.jl")
 ##
 # ----- This script take in K and M_DM, returns rho_0 and radius
 n = 5
-Krange = [2e9,4e9,6e9,8e9,1e10,1.2e10,1.4e10,1.6e10,1.8e10,2e10,4e10,6e10]
-M_DMrange = [0.02,0.04,0.06,0.08,0.1,0.15,0.2,0.25,0.3] #solar masses
+Krange = [1e9,1.5e9,2e9]
+M_DMrange = [0.08,0.1,0.12] #solar masses
 M_NS1 = 0
 
 radii = zeros(Float64,length(Krange),length(M_DMrange))

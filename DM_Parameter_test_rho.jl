@@ -9,7 +9,7 @@ M_NS1 = 0
 radii = zeros(Float64,length(rhorange),length(M_DMrange))   #Outer Radius
 Ks = zeros(Float64,length(rhorange),length(M_DMrange))      #K value
 radius_Mh = zeros(Float64,length(rhorange),length(M_DMrange))       #Half mass radius
-profiles = Matrix{Tuple{Vector{Float64},Vector{Float64}}}(undef,length(Krange),length(M_DMrange))   #saves density profile for plotting
+profiles = Matrix{Tuple{Vector{Float64},Vector{Float64}}}(undef,length(rhorange),length(M_DMrange))   #saves density profile for plotting
 
 for rhoi in range(1,length(rhorange))
     for Mi in range(1,length(M_DMrange))
