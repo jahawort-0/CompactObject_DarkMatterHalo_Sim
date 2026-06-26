@@ -582,19 +582,19 @@ module Integrate
         P = Math.period(a, Mtot)
 
         #dM_DM_dt = -1e-200
-        dM_DM_dt = -10/P * (M_DM - mass_r(R_RL))  #will need A = 10
+        dM_DM_dt = -10/P * (M_DM - mass_r(R_RL))  #using A = 10
         #This works under the assumption that the change in mass is monotonic
         #For more complicated mass transfer (second halo forming) we need a more complex treatment
         
-        da_rr_dt = -64 * Math.G^3 * mu * Mtot^2 / (5*Math.c^5*a^3)
+        da_rr_dt = -64 * Math.G^3 * mu * Mtot^2 / (5*Math.c^5*a^3)  #Simplified radiation reaction model
 
-        dM_NS2_dt = 0 #Simple assumption that removed mass will leave system
+        dM_NS2_dt = 0 #Simple assumption that removed mass will leave system, none remains
 
         beta = abs(dM_NS2_dt/dM_DM_dt)
-        gamma = (M_NS1+M_DM)/M_NS2  #isotropic reemission
+        gamma = (M_NS1+M_DM)/M_NS2  #isotropic reemission 
 
         da_mt_dt = -2*a * dM_DM_dt/(M_NS1+M_DM) * (1- beta*(M_DM+M_NS1)/M_NS2 -
-            (1-beta)*(gamma+0.5) * (M_NS1+M_DM)/Mtot)
+        (1-beta)*(gamma+0.5) * (M_NS1+M_DM)/Mtot)   #effect of mass transfer on seperation
 
         da_dt = da_rr_dt + da_mt_dt
 

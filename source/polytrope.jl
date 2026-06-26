@@ -77,6 +77,104 @@ module Polytrope
     	return(find_roots(ftn;low=low,high=high,iterations=iterations-1))   #loops function for n iterations
     end
 
+    #Numerical solution to Polytrope with Neutron star at center
+    function halo_polytrope_problem!(du,u,p,r)
+        # u = [ρ, dρ]
+        #du = [dρ, ddρ]
+        # p = [n,K,M_NS1,R_NS1,ρDM_0]
+        # r = radius, variable of integration
+        #setup inputs
+        ρ = u[1]
+        dρ = u[2]
+        n = p[1]
+        K = p[2]
+        M_NS1 = p[3]
+        R_NS1 = p[4]
+
+        #Make useful terms
+        Γ = 1 + (1/n)
+        NS_density = M_NS1 / (4/3*pi*R_NS1^3)
+        if r<=R_NS1
+            ρNS = NS_density
+        else
+            ρNS = 0
+        end
+        ρDM = ρ - ρNS
+
+        #The second order ODE
+        ddρ = (-4*pi*G/(K*Γ) * ρDM^(1-Γ) *(ρ)) - dρ*(2/r + (Γ-1)/ρDM)
+
+        #outputs
+        du[1] = dρ
+        du[2] = ddρ
+    end
+
+    #Numerical solution to Polytrope with Neutron star at center
+    function halo_polytrope_problem2!(du,u,p,r)
+        # u = [ρDM, M]
+        #du = [dρ, dM]
+        # p = [n,K,M_NS1,R_NS1,ρDM_0]
+        # r = radius, variable of integration
+        #setup inputs
+        ρDM = u[1]
+        M = u[2]
+        n = p[1]
+        K = p[2]
+        M_NS1 = p[3]
+        R_NS1 = p[4]
+
+        #Make useful terms
+        Γ = 1 + (1/n)
+        NS_density = M_NS1 / (4/3*pi*R_NS1^3)
+        if r<=R_NS1
+            ρNS = NS_density
+        else
+            ρNS = 0
+        end
+        ρ = ρDM + ρNS
+
+        #The second order ODE
+        dρ = -G/(K*Γ) * M / r^2 * ρDM^(2-Γ)
+        dM = 4*pi * r^2 * ρ
+
+        #outputs
+        du[1] = dρ
+        du[2] = dM
+    end
+
+    function halo(p,rspan)
+        # p = [n,K,M_NS1,R_NS1,ρDM_0]
+        #rspan: radius over which we integrate
+
+        M_NS1 = p[3]
+        R_NS1 = p[4]
+        ρDM_0 = p[5]
+        NS_density = M_NS1 / (4/3*pi*R_NS1^3)
+
+        #u0 = [ρ0, dρ0 = 0] Setup Initial conditions
+        u0 = [NS_density + ρDM_0, 0]
+    
+        prob = ODEProblem(halo_polytrope_problem2!, u0, rspan, p)
+        sol = solve(prob, abstol = 1e-12, reltol = 1e-12)
+
+        return(sol)
+    end
+
+    function solve_halo(n,K,M_NS1,R_NS1,ρDM_0,rend)
+        p = [n,K,M_NS1,R_NS1,ρDM_0]
+        rspan = (1e-6,rend)
+
+        sol = halo(p,rspan)
+
+        rs = range(0,rend,1000)
+        sol_interp = sol(rs)
+
+        rho_r = sol_interp[1,:]
+        M_r = sol_interp[2,:]
+
+        return [rs,rho_r,M_r]
+
+    end
 
     #stores the solution of polytropic equations of state so that they do not 
     #need to be solved each time that they are used
