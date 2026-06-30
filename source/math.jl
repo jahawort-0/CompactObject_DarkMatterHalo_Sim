@@ -49,11 +49,12 @@ module Math
         x=M_WD/M_ch
         y=M_WD/0.00057
         #see Even (2009; https://arxiv.org/pdf/0908.2116) for summary
-        if optional.equation==1 #Nauenberg equation
-        	return(15584.0/optional.mu_e * x^(-1.0/3.0) * (1-x^(4.0/3.0))^(1.0/2.0))
-        else #Eggleton equation
-            return(7931.0*sqrt(x^(-2.0/3.0)-x^(2.0/3.0)) * (1.0+3.5*y^(-2.0/3.0)+1/y)^(-2.0/3.0)) 
-        end
+        # if optional.equation==1 #Nauenberg equation
+        # 	return(15584.0/optional.mu_e * x^(-1.0/3.0) * (1-x^(4.0/3.0))^(1.0/2.0))
+        # else #Eggleton equation
+        #     return(7931.0*sqrt(x^(-2.0/3.0)-x^(2.0/3.0)) * (1.0+3.5*y^(-2.0/3.0)+1/y)^(-2.0/3.0)) 
+        # end
+        return 0
     end
     
     """
@@ -711,10 +712,10 @@ module Math
     end
 
     function cgs_density(density)
-        return (density * 1.988416e30 / 1e12)
+        return (density * 1.988416e33 / 1e15)
     end
 
     function cgs_density_inv(density)
-        return (density / 1.988416e30 * 1e12)
+        return (density * 1e15 / 1.988416e33)
     end
 end

@@ -78,14 +78,15 @@ module Polytrope
     end
 
     #Numerical solution to Polytrope with Neutron star at center
-    function halo_polytrope_problem!(du,u,p,r)
-        # u = [ρ, dρ]
-        #du = [dρ, ddρ]
+    function halo_polytrope_problem_inside!(du,u,p,r)
+        # u = [ρDM, M, M_DM]
+        #du = [dρ, dM]
         # p = [n,K,M_NS1,R_NS1,ρDM_0]
         # r = radius, variable of integration
         #setup inputs
-        ρ = u[1]
-        dρ = u[2]
+        ρDM = u[1]
+        M = u[2]
+        M_DM = u[3]
         n = p[1]
         K = p[2]
         M_NS1 = p[3]
@@ -93,24 +94,28 @@ module Polytrope
 
         #Make useful terms
         Γ = 1 + (1/n)
-        NS_density = M_NS1 / (4/3*pi*R_NS1^3)
-        if r<=R_NS1
-            ρNS = NS_density
-        else
-            ρNS = 0
-        end
-        ρDM = ρ - ρNS
+        ρNS = M_NS1 / (4/3*pi*R_NS1^3)
+        ρ = ρDM + ρNS
 
+        if ρDM<= 0  #"ending" the integration if density drops to zero
+            u[1] = 0    #set DM density to zero
+            du[1] = 0   #no change in DM density
+            du[2] = 4*pi * r^2 * ρNS    #total enclosed mass comes only from NS
+            du[3] = 0   #no change in DM mass
+        else    #normal integration
         #The second order ODE
-        ddρ = (-4*pi*G/(K*Γ) * ρDM^(1-Γ) *(ρ)) - dρ*(2/r + (Γ-1)/ρDM)
+        dρ = -G/(K*Γ) * M / r^2 * ρ / ρDM^(Γ-1)
+        dM = 4*pi * r^2 * ρ
+        dM_DM = 4*pi * r^2 * ρDM
 
         #outputs
         du[1] = dρ
-        du[2] = ddρ
+        du[2] = dM
+        du[3] = dM_DM
+        end
     end
 
-    #Numerical solution to Polytrope with Neutron star at center
-    function halo_polytrope_problem2!(du,u,p,r)
+    function halo_polytrope_problem_outside!(du,u,p,r)
         # u = [ρDM, M]
         #du = [dρ, dM]
         # p = [n,K,M_NS1,R_NS1,ρDM_0]
@@ -125,54 +130,81 @@ module Polytrope
 
         #Make useful terms
         Γ = 1 + (1/n)
-        NS_density = M_NS1 / (4/3*pi*R_NS1^3)
-        if r<=R_NS1
-            ρNS = NS_density
-        else
-            ρNS = 0
-        end
+        ρNS = 0
         ρ = ρDM + ρNS
 
+        if ρDM<= 0  #"ending" the integration if density drops to zero
+            u[1] = 0    #set DM density to zero
+            du[1] = 0   #no change in DM density
+            du[2] = 0   #total enclosed mass 
+            du[3] = 0   #no change in DM mass
+        else    #normal integration
+
         #The second order ODE
-        dρ = -G/(K*Γ) * M / r^2 * ρDM^(2-Γ)
+        dρ = -G/(K*Γ) * M / r^2 * ρDM / ρDM^(Γ-1)
         dM = 4*pi * r^2 * ρ
 
         #outputs
         du[1] = dρ
         du[2] = dM
+        du[3] = dM
+        end
     end
 
     function halo(p,rspan)
         # p = [n,K,M_NS1,R_NS1,ρDM_0]
         #rspan: radius over which we integrate
 
+        rspan_in = (rspan[1],p[4])
+        rspan_out = (p[4],rspan[end])
+
         M_NS1 = p[3]
         R_NS1 = p[4]
         ρDM_0 = p[5]
         NS_density = M_NS1 / (4/3*pi*R_NS1^3)
+        M0 = 4π/3 * rspan[1]^3 * (NS_density + ρDM_0)
+        M0_DM = 4π/3 * rspan[1]^3 * ρDM_0
+
 
         #u0 = [ρ0, dρ0 = 0] Setup Initial conditions
-        u0 = [NS_density + ρDM_0, 0]
+        u0 = [ρDM_0, M0,M0_DM]
     
-        prob = ODEProblem(halo_polytrope_problem2!, u0, rspan, p)
-        sol = solve(prob, abstol = 1e-12, reltol = 1e-12)
+        prob1 = ODEProblem(halo_polytrope_problem_inside!, u0, rspan_in, p)
+        sol1 = solve(prob1, abstol = 1e-12, reltol = 1e-12)
 
-        return(sol)
+        u0_out = sol1.u[end]
+        prob2 = ODEProblem(halo_polytrope_problem_outside!,u0_out,rspan_out,p)
+        sol2 = solve(prob2, abstol = 1e-12, reltol = 1e-12)
+
+        return(sol1, sol2)
     end
 
     function solve_halo(n,K,M_NS1,R_NS1,ρDM_0,rend)
         p = [n,K,M_NS1,R_NS1,ρDM_0]
         rspan = (1e-6,rend)
 
-        sol = halo(p,rspan)
+        sol_in,sol_out = halo(p,rspan)
 
-        rs = range(0,rend,1000)
-        sol_interp = sol(rs)
+        rs_in = LinRange(0,R_NS1, 1000)
+        rs_out = LinRange(R_NS1,1000, 1000)
+        rs = vcat(rs_in,rs_out)
 
-        rho_r = sol_interp[1,:]
-        M_r = sol_interp[2,:]
+        sol_in_interp = sol_in(rs_in)
+        sol_out_interp = sol_out(rs_out)
+        
+        rho_r_in = sol_in_interp[1,:]
+        rho_r_out = sol_out_interp[1,:]
+        rho_r = vcat(rho_r_in,rho_r_out)
 
-        return [rs,rho_r,M_r]
+        M_r_in = sol_in_interp[2,:]
+        M_r_out = sol_out_interp[2,:]
+        M_r = vcat(M_r_in,M_r_out)
+
+        M_DM_r_in = sol_in_interp[3,:]
+        M_DM_r_out = sol_out_interp[3,:]
+        M_DM_r = vcat(M_DM_r_in,M_DM_r_out)
+
+        return [rs,rho_r,M_r,M_DM_r]
 
     end
 

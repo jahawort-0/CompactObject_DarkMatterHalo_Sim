@@ -43,7 +43,7 @@ module Integrate
         a=Math.RL_contact(M_NS1,M_NS2,M_DM,RealPoly;optional=optional)
         J=Math.circular_J(a,(M_NS1 + M_DM),M_NS2)
         R_DM=RealPoly.R_DM
-        return([a, M_NS1, M_NS2, M_DM, R_DM, J, 0.])
+        return([Float64(a), Float64(M_DM), Float64(M_NS1), Float64(M_NS2), Float64(R_DM), Float64(J), 0.])
     end
     
     #"Below is the heart of the integration process"
@@ -555,22 +555,14 @@ module Integrate
 
     ## New DM halo functions
 
-    function update_mass_r(mass_r)
-
-    end
-
     function halo_problem!(du,u,p,t)
         #--------Setup inputs ---------
 
-        #du = [dM_DM_dt, da_dt]
-        # u = [M_DM, a]
-        # p = [M_NS1, M_NS2, mass_r]
-        M_DM = u[1]     
-        a = u[2]        
-
-        M_NS1 = p[1]    
-        M_NS2 = p[2]    
-        mass_r = p[3]
+        #du = [da_dt, dM_DM_dt, dM_NS1_dt, dM_NS2_dt, dphase_dt, dJ_dt]
+        # u = [    a,     M_DM,     M_NS1,     M_NS2,     phase,     J]
+        # p = [mass_r]
+        a = u[1];   M_DM = u[2];    M_NS1 = u[3];   M_NS2 = u[4]
+        mass_r = p[1]
 
         #--------Setup the model of the system, makes many assumptions ---------
 
@@ -581,8 +573,8 @@ module Integrate
 
         P = Math.period(a, Mtot)
 
-        #dM_DM_dt = -1e-200
-        dM_DM_dt = -10/P * (M_DM - mass_r(R_RL))  #using A = 10
+        dM_DM_dt = -1e-200
+        #dM_DM_dt = -10/P * (M_DM - mass_r(R_RL))  #using A = 10
         #This works under the assumption that the change in mass is monotonic
         #For more complicated mass transfer (second halo forming) we need a more complex treatment
         
@@ -598,11 +590,22 @@ module Integrate
 
         da_dt = da_rr_dt + da_mt_dt
 
-        #dJ_dt = 0  #No change in angular momentum, not a very good assumption
+        dphase_dt = 2*pi/P
+
+        dJ_dt = 0  #No change in angular momentum, not a very good assumption
+
+        dM_NS1_dt = 0
+
+        dM_NS2_dt = 0 
+
 
         #---------Define outputs ----------
-        du[1] = dM_DM_dt
-        du[2] = da_dt
+        du[1] = da_dt
+        du[2] = dM_DM_dt
+        du[3] = dM_NS1_dt
+        du[4] = dM_NS2_dt
+        du[5] = dphase_dt
+        du[6] = dJ_dt
     end
 
     function integrate_halo(u0,p,tspan)
@@ -612,7 +615,7 @@ module Integrate
     
         prob = ODEProblem(halo_problem!, u0, tspan, p)
         sol = solve(prob)
-
+        #sol = [M_DM, a, phase]
         return(sol)
     end
 

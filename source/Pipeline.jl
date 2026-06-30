@@ -277,6 +277,7 @@ module Pipeline
 
     """Given the output of one of the above pipelines, formats the data in a CSV for human consumption. """
     function package_quadrupole_frequency(full_out_test)
+        #full_out_test [a,M_WD,M_NS,R_WD,J,phase,t]
         out=zeros(length(full_out_test[:,1]),8)
         out[:,1].=full_out_test[:,7]
         out[:,5:7].=full_out_test[:,1:3]
@@ -289,6 +290,30 @@ module Pipeline
             out[i,3:4].=t_ddI[2][1:2]
         end
         return(out)
+        #out["t", "f", "ddI_p", "ddI_c", "a", "M_WD", "M_NS", "Phase"]
+    end
+
+    #New Function for DM
+    function package_quadrupole_frequency_new(full_out_test)
+        #full_out_test [a, M_DM,M_NS1,M_NS2, phase, J, R_DM, t]
+        out=zeros(length(full_out_test[:,1]),9)
+        out[:,1].=full_out_test[:,8]
+        out[:,5:8].=full_out_test[:,1:4]  # a, Masses  
+        out[:,9].=full_out_test[:,5]    #phase
+        for i in 1:length(full_out_test[:,1])
+            out[i,2]=2/Math.period(full_out_test[i,4],full_out_test[i,1]+full_out_test[i,2]+full_out_test[i,3]) #frequency
+            zero_theta=zeros(6)
+            #zero_theta[1:5].=full_out_test[i,1:5]
+            zero_theta[1]=full_out_test[i,1] #a
+            zero_theta[2]=(full_out_test[i,1].+full_out_test[i,2]) #M_DM+M_NS1
+            zero_theta[3]=full_out_test[i,4]   #M_NS2
+            zero_theta[4]=full_out_test[i,7]     #R_WD??
+            zero_theta[5]=full_out_test[i,6]     #J
+            t_ddI=Math.ddI_dddI_from_theta(zero_theta; ddI_only=true)
+            out[i,3:4].=t_ddI[2][1:2]
+        end
+        return(out)
+        #out["t", "f", "ddI_p", "ddI_c", "a", "M_DM", "M_NS1", "M_NS2, "Phase"]
     end
 
     """Saves output as a .csv file. NOTE THE SPECIFIC FORMATTING USED--you may want to change this based on your system."""
