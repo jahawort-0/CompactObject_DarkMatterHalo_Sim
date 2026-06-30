@@ -19,6 +19,6 @@ using NamedArrays
 include("source/Integrate.jl")
 #include("source/make_poly_tables.jl")
 include("source/math.jl")
-#include("source/Pipeline.jl")
+include("source/Pipeline.jl")
 include("source/polytrope.jl")
 #include("source/save.jl")

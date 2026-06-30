@@ -112,22 +112,28 @@ M_DM = 0.1
 output = Polytrope.compute_polytrope(n); #calculate polytrope
 output2 = Polytrope.apply_polytrope(output,M_DM,0,K,n)
 
-p1 = plot(output2.rs,output2.rho_r, xlabel = "Radius [km]", ylabel = L"Density [M_\odot / km^3]",dpi = 200)
+p1 = plot(output2.rs,output2.rho_r, xlabel = "Radius [km]", ylabel = L"Density [M_\odot / km^3]",dpi = 200, label = "no NS")
+p2 = plot(output2.rs,output2.mass_r, xlabel = "Radius [km]", ylabel = L"Mass [M_\odot]",dpi = 200, label = "no NS")
+
 
 #Then new
-rho_0 = 4.7869774883664296e-6
-M_NS1 = 1e-8
-R_NS1 = 5
+rho_0 = 1e-3#4.7796e-6
+M_NS1 = 1.4
+R_NS1 = 12
 NS_density = M_NS1 / (4/3*pi*R_NS1^3)
+K_NS = 7e10
 
 rend = 1000
 # p = [n,K,M_NS1,R_NS1,rho_0]
 # u = [NS_density + rho_0, 0]
-# Polytrope.halo_polytrope_problem2!(du,u,p,1e-8)
+# du = [Float64(0),Float64(0)]
+# Polytrope.halo_polytrope_problem!(du,u,p,1e-8)
 # println(u)
 # println(du)
 
-output3 = Polytrope.solve_halo(n,K,M_NS1,R_NS1,rho_0,rend)
+output3 = Polytrope.solve_halo(n,K_NS,M_NS1,R_NS1,rho_0,rend)
 
-plot!(output3[1,:],output3[2,:],xlim = (0,100))
+plot!(p1,output3[1,:],output3[2,:],xlim = (0,rend), ylim = (0,5e-6), label = "w/ NS")
+plot!(p2,output3[1,:],output3[4,:],xlim = (0,rend), ylim = (0,0.1), label = "w/ NS")
+display(p2)
 display(p1)
