@@ -77,10 +77,163 @@ module Polytrope
     	return(find_roots(ftn;low=low,high=high,iterations=iterations-1))   #loops function for n iterations
     end
 
-    #Numerical solution to Polytrope with Neutron star at center
+    #stores the solution of polytropic equations of state so that they do not 
+    #need to be solved each time that they are used
+    struct CachedPolytrope
+        sol   :: Any      #Differential equation solution table
+        root  :: Float64  #scale factor if the surface of the white dwarf (for normalization)
+        tnorm :: Float64  #solution to the mass integral (for normalization)
+        mass  :: Any  #mass enclosed as a function of radius
+    end
+
+    #stores all CashedPolytrope types previously calculated
+    const polytrope_cache = Dict{Float64, CachedPolytrope}()
+
+    """Calculates the solution to a polytropic differential equation and its normalized radius and mass """
+    function compute_polytrope(n)
+        f! = polytrope_a(n)
+
+        if n == 5
+            θ0 = [1.0, 0.0]
+            tspan = (0.001, 100)
+            prob = ODEProblem(f!, θ0, tspan, nothing)
+            sol = solve(prob; reltol=1e-9, abstol=1e-9, dtmax=1e-3)
+    
+            # The n=5 polytrope never goes to zero, however its area does converge to sqrt(3)
+            # Taking xi=100 as the edge of the polytrop encapsulates 99.95% of the total mass
+            root = 100
+    
+            # normalization integral ∫ xi^2 θ^n dxi
+            tnorm = quadgk(x -> dm_dxi(x, sol, n), 0, root)[1]
+
+            mass = mass_enclosed(sol,root,n);
+    
+            return CachedPolytrope(sol, root, tnorm, mass)
+
+        else
+            θ0 = [1.0, 0.0]
+            tspan = (0.001, 20)
+            prob = ODEProblem(f!, θ0, tspan, nothing)
+            sol = solve(prob; reltol=1e-9, abstol=1e-9, dtmax=1e-3)
+    
+            # root-finding for θ=0
+            root = find_roots(xi -> sol(xi)[1])
+    
+            # normalization integral ∫ xi^2 θ^n dxi
+            tnorm = quadgk(x -> dm_dxi(x, sol, n), 0, root)[1]
+
+            mass = mass_enclosed(sol,root,n);
+    
+            return CachedPolytrope(sol, root, tnorm, mass)
+        end
+    end
+
+    function polytrope_profile(output,xi)
+        xi1 = output.root
+        if xi > xi1
+            return [0,0]
+        else
+            return output.sol(xi)
+        end
+    end
+
+    struct RealPolytrope
+        rs   :: Vector{Float64}
+        R_DM  :: Float64 
+        rho_r :: Vector{Float64}  
+        mass_r  :: Vector{Float64}  
+        rho_interp :: Any
+        mass_interp :: Any
+        M_DM :: Float64
+    end
+
+    """Nondimensionalize Polytrope solution"""
+    function apply_polytrope(CachedPoly, M_DM,M_NS1,K,n)
+        xi1 = CachedPoly.root       #outer radius of DM halo
+        xi_range = range(0,xi1,length = 1000)     #array of dimensionless radii
+        M_tot_nondim = CachedPoly.mass(xi1)                         #total dimensionless mass
+        if n==5
+            M_tot_nondim = sqrt(3)
+        end
+        thetas = Polytrope.polytrope_profile.(Ref(CachedPoly),xi_range)
+        thetas = reduce(hcat,thetas)[1,:]
+
+        rho_0 = (K*(n+1)/(4*pi*G)*((4*pi*M_tot_nondim/M_DM)^(2/3)))^(1/((1/3)-(1/n)))
+        alpha = ((n+1)*K/(4*pi*G*rho_0^(1-(1/n))))^(1/2)   #alpha is nondim. constant, easier to use
+        
+        #redimensionalize
+        rs = xi_range.*alpha #an array of distances in km
+        R_DM = xi1*alpha  #outer edge of halo in km
+        rho_r = rho_0.*((thetas).^n)  #density profile
+        mass_r = 4*pi* alpha^3 * rho_0 * CachedPoly.mass(xi_range)  #mass profile
+        #mass_r = mass_r .+ M_NS1    #add in central point mass
+
+        rho_interp = linear_interpolation(rs, rho_r, extrapolation_bc=Flat())
+        mass_interp = linear_interpolation(rs, mass_r, extrapolation_bc=Flat())
+
+        df = DataFrame([rs,rho_r,mass_r], ["rs", "rho_r", "mass_r"])
+
+        CSV.write("Polytrope_sol.csv", df)
+
+        return RealPolytrope(rs,R_DM,rho_r,mass_r,rho_interp,mass_interp,M_DM)
+    end
+
+    function n5apply_polytrope(M_DM::Float64,K::Float64)   #temporary
+        M_tot_nondim = sqrt(3)
+        n = 5
+
+        rho_0 = (K*(n+1)/(4*pi*G)*((4*pi*M_tot_nondim/M_DM)^(2/3)))^(1/((1/3)-(1/n)))
+        alpha = ((n+1)*K/(4*pi*G*rho_0^(1-(1/n))))^(1/2)   #alpha is nondim. constant, easier to use
+        
+        rho_interp(r) = rho_0 * (LEn5_sol(r/alpha)[1])^n
+        mass_interp(r) = 4*pi*alpha^3 * rho_0 * (r/alpha)^2 * abs(LEn5_sol(r/alpha)[2])
+
+        return RealPolytrope([],NaN,[],[],rho_interp,mass_interp,M_DM)
+    end
+
+    struct RealPolytrope_wK
+        rs   :: Vector{Float64}
+        R_DM  :: Float64 
+        rho_r :: Vector{Float64}  
+        mass_r  :: Vector{Float64}  
+        K :: Float64
+        rho_interp :: Any
+        mass_interp :: Any
+        M_DM :: Float64
+    end
+
+    #For a given central density
+    function apply_polytrope_rho(CachedPoly, M_DM,M_NS1,rho_0,n)
+        xi1 = CachedPoly.root       #outer radius of DM halo
+        xi_range = range(0,xi1,length = 1000)     #array of dimensionless radii
+        M_tot_nondim = CachedPoly.mass(xi1)                         #total dimensionless mass
+        if n==5
+            M_tot_nondim = sqrt(3)
+        end
+        thetas = Polytrope.polytrope_profile.(Ref(CachedPoly),xi_range)
+        thetas = reduce(hcat,thetas)[1,:]
+
+        K = (1/(4*pi*rho_0)*(M_DM/M_tot_nondim))^(2/3) *4*pi*G*rho_0^(1-(1/n)) / (n+1) #calculate polytrope constant
+        alpha = ((n+1)*K/(4*pi*G*rho_0^(1-(1/n))))^(1/2)   #alpha is nondim. constant, easier to use
+        
+        #redimensionalize
+        rs = xi_range.*alpha #an array of distances in km
+        R_DM = xi1*alpha  #outer edge of halo in km
+        rho_r = rho_0.*((thetas).^n)  #density profile
+        mass_r = 4*pi* alpha^3 * rho_0 * CachedPoly.mass(xi_range)  #mass profile
+        #mass_r = mass_r .+ M_NS1    #add in central point mass
+
+        rho_interp = linear_interpolation(rs, rho_r, extrapolation_bc=Flat())
+        mass_interp = linear_interpolation(rs, mass_r, extrapolation_bc=Flat())
+
+        return RealPolytrope_wK(rs,R_DM,rho_r,mass_r,K,rho_interp,mass_interp,M_DM)
+
+    end
+
+        #Numerical solution to Polytrope with Neutron star at center
     function halo_polytrope_problem_inside!(du,u,p,r)
         # u = [ρDM, M, M_DM]
-        #du = [dρ, dM]
+        #du = [dρ, dM,dM_DM]
         # p = [n,K,M_NS1,R_NS1,ρDM_0]
         # r = radius, variable of integration
         #setup inputs
@@ -104,7 +257,7 @@ module Polytrope
             du[3] = 0   #no change in DM mass
         else    #normal integration
         #The second order ODE
-        dρ = -G/(K*Γ) * M / r^2 * ρ / ρDM^(Γ-1)
+        dρ = -G/(K*Γ) * M / r^2 * ρDM / ρDM^(Γ-1)
         dM = 4*pi * r^2 * ρ
         dM_DM = 4*pi * r^2 * ρDM
 
@@ -186,173 +339,59 @@ module Polytrope
         sol_in,sol_out = halo(p,rspan)
 
         rs_in = LinRange(0,R_NS1, 1000)
-        rs_out = LinRange(R_NS1,1000, 1000)
-        rs = vcat(rs_in,rs_out)
+        rs_out = LinRange(R_NS1,rend, 1000)
+        rs = vcat(rs_in,rs_out[2:end])
 
         sol_in_interp = sol_in(rs_in)
         sol_out_interp = sol_out(rs_out)
         
         rho_r_in = sol_in_interp[1,:]
         rho_r_out = sol_out_interp[1,:]
-        rho_r = vcat(rho_r_in,rho_r_out)
+        rho_r = vcat(rho_r_in,rho_r_out[2:end])
 
         M_r_in = sol_in_interp[2,:]
         M_r_out = sol_out_interp[2,:]
-        M_r = vcat(M_r_in,M_r_out)
+        M_r = vcat(M_r_in,M_r_out[2:end])
 
         M_DM_r_in = sol_in_interp[3,:]
         M_DM_r_out = sol_out_interp[3,:]
-        M_DM_r = vcat(M_DM_r_in,M_DM_r_out)
-
-        return [rs,rho_r,M_r,M_DM_r]
-
-    end
-
-    #stores the solution of polytropic equations of state so that they do not 
-    #need to be solved each time that they are used
-    struct CachedPolytrope
-        sol   :: Any      #Differential equation solution table
-        root  :: Float64  #scale factor if the surface of the white dwarf (for normalization)
-        tnorm :: Float64  #solution to the mass integral (for normalization)
-        mass  :: Any  #mass enclosed as a function of radius
-    end
-
-    #stores all CashedPolytrope types previously calculated
-    const polytrope_cache = Dict{Float64, CachedPolytrope}()
-
-    """Calculates the solution to a polytropic differential equation and its normalized radius and mass """
-    function compute_polytrope(n)
-        f! = polytrope_a(n)
-
-        if n == 5
-            θ0 = [1.0, 0.0]
-            tspan = (0.001, 100)
-            prob = ODEProblem(f!, θ0, tspan, nothing)
-            sol = solve(prob; reltol=1e-9, abstol=1e-9, dtmax=1e-3)
-    
-            # The n=5 polytrope never goes to zero, however its area does converge to sqrt(3)
-            # Taking xi=100 as the edge of the polytrop encapsulates 99.95% of the total mass
-            root = 100
-    
-            # normalization integral ∫ xi^2 θ^n dxi
-            tnorm = quadgk(x -> dm_dxi(x, sol, n), 0, root)[1]
-
-            mass = mass_enclosed(sol,root,n);
-    
-            return CachedPolytrope(sol, root, tnorm, mass)
-
-        else
-            θ0 = [1.0, 0.0]
-            tspan = (0.001, 20)
-            prob = ODEProblem(f!, θ0, tspan, nothing)
-            sol = solve(prob; reltol=1e-9, abstol=1e-9, dtmax=1e-3)
-    
-            # root-finding for θ=0
-            root = find_roots(xi -> sol(xi)[1])
-    
-            # normalization integral ∫ xi^2 θ^n dxi
-            tnorm = quadgk(x -> dm_dxi(x, sol, n), 0, root)[1]
-
-            mass = mass_enclosed(sol,root,n);
-    
-            return CachedPolytrope(sol, root, tnorm, mass)
-        end
-    end
-
-    function polytrope_profile(output,xi)
-        xi1 = output.root
-        if xi > xi1
-            return [0,0]
-        else
-            return output.sol(xi)
-        end
-    end
-
-    struct RealPolytrope
-        rs   :: Vector{Float64}
-        R_DM  :: Float64 
-        rho_r :: Vector{Float64}  
-        mass_r  :: Vector{Float64}  
-        rho_interp :: Any
-        mass_interp :: Any
-    end
-
-    """Nondimensionalize Polytrope solution"""
-    function apply_polytrope(CachedPoly, M_DM,M_NS1,K,n)
-        xi1 = CachedPoly.root       #outer radius of DM halo
-        xi_range = range(0,xi1,length = 1000)     #array of dimensionless radii
-        M_tot_nondim = CachedPoly.mass(xi1)                         #total dimensionless mass
-        if n==5
-            M_tot_nondim = sqrt(3)
-        end
-        thetas = Polytrope.polytrope_profile.(Ref(CachedPoly),xi_range)
-        thetas = reduce(hcat,thetas)[1,:]
-
-        rho_0 = (K*(n+1)/(4*pi*G)*((4*pi*M_tot_nondim/M_DM)^(2/3)))^(1/((1/3)-(1/n)))
-        alpha = ((n+1)*K/(4*pi*G*rho_0^(1-(1/n))))^(1/2)   #alpha is nondim. constant, easier to use
-        
-        #redimensionalize
-        rs = xi_range.*alpha #an array of distances in km
-        R_DM = xi1*alpha  #outer edge of halo in km
-        rho_r = rho_0.*((thetas).^n)  #density profile
-        mass_r = 4*pi* alpha^3 * rho_0 * CachedPoly.mass(xi_range)  #mass profile
-        #mass_r = mass_r .+ M_NS1    #add in central point mass
+        M_DM_r = vcat(M_DM_r_in,M_DM_r_out[2:end])
 
         rho_interp = linear_interpolation(rs, rho_r, extrapolation_bc=Flat())
-        mass_interp = linear_interpolation(rs, mass_r, extrapolation_bc=Flat())
+        mass_interp = linear_interpolation(rs, M_DM_r, extrapolation_bc=Flat())
 
-        return RealPolytrope(rs,R_DM,rho_r,mass_r,rho_interp,mass_interp)
-    end
+        #solve for total mass   #not quite working yet
+            # M_in = M_DM_r_in[end]
+            # Γ = 1 + (1/n)
+            # rho_surf = rho_interp(R_NS1)
+            #     u0_back = [rho_r_out[1],M_r_out[1],M_DM_r_out[1]]
+            #     rspan_back = (R_NS1,0)
+            #     prob3 = ODEProblem(halo_polytrope_problem_outside!,u0_back,rspan_back,p)
+            #     sol3 = solve(prob3, abstol = 1e-12, reltol = 1e-12)
+            # rho0 = maximum(sol3(0))
+            # α = ((n+1)*K/(4*pi*G*rho0^(1-(1/n))))^(1/2)
+            # rho_prime = (rho_interp(R_NS1+0.00001)-rho_interp(R_NS1)/0.00001)
+            # M_out = 4*pi*rho0^((93*Γ-4)/2) * (K*Γ/(4*pi*G*(Γ-1)))^(3/2) * (sqrt(3) - ((R_NS1/α)^2 *abs((Γ-1) * (rho_surf/rho0)^(Γ-2) * α / rho0 * rho_prime)))
+            # Mtot = M_in + M_out
 
-    function n5apply_polytrope(M_DM::Float64,K::Float64)   #temporary
-        M_tot_nondim = sqrt(3)
-        n = 5
+        #M_DM = NaN #Mtot
 
-        rho_0 = (K*(n+1)/(4*pi*G)*((4*pi*M_tot_nondim/M_DM)^(2/3)))^(1/((1/3)-(1/n)))
-        alpha = ((n+1)*K/(4*pi*G*rho_0^(1-(1/n))))^(1/2)   #alpha is nondim. constant, easier to use
-        
-        rho_interp(r) = rho_0 * (LEn5_sol(r/alpha)[1])^n
-        mass_interp(r) = 4*pi*alpha^3 * rho_0 * (r/alpha)^2 * abs(LEn5_sol(r/alpha)[2])
+        frac = 0.95
+        # examine change in enclose mass
+        dM = diff(M_DM_r_out)
+        plateau = findfirst(abs.(dM) .< 1e-12)  #will return spot where enclosed mass platuaus
 
-        return RealPolytrope([],NaN,[],[],rho_interp,mass_interp)
-    end
-
-    struct RealPolytrope_wK
-        rs   :: Vector{Float64}
-        R_DM  :: Float64 
-        rho_r :: Vector{Float64}  
-        mass_r  :: Vector{Float64}  
-        K :: Float64
-        rho_interp :: Any
-        mass_interp :: Any
-    end
-
-    #For a given central density
-    function apply_polytrope_rho(CachedPoly, M_DM,M_NS1,rho_0,n)
-        xi1 = CachedPoly.root       #outer radius of DM halo
-        xi_range = range(0,xi1,length = 1000)     #array of dimensionless radii
-        M_tot_nondim = CachedPoly.mass(xi1)                         #total dimensionless mass
-        if n==5
-            M_tot_nondim = sqrt(3)
+        if plateau !== nothing  #if plateau is in the range we are searching
+            R_DM = rs_out[plateau+1]
+        else        #there may not be a platueau within the region we search, take the 95% mass boundary
+            M_target = frac * M_DM_r_out[end]
+            radius_mass_interp = linear_interpolation(M_DM_r_out, rs_out)
+            R_DM = radius_mass_interp(M_target)
         end
-        thetas = Polytrope.polytrope_profile.(Ref(CachedPoly),xi_range)
-        thetas = reduce(hcat,thetas)[1,:]
 
-        K = (1/(4*pi*rho_0)*(M_DM/M_tot_nondim))^(2/3) *4*pi*G*rho_0^(1-(1/n)) / (n+1) #calculate polytrope constant
-        alpha = ((n+1)*K/(4*pi*G*rho_0^(1-(1/n))))^(1/2)   #alpha is nondim. constant, easier to use
-        
-        #redimensionalize
-        rs = xi_range.*alpha #an array of distances in km
-        R_DM = xi1*alpha  #outer edge of halo in km
-        rho_r = rho_0.*((thetas).^n)  #density profile
-        mass_r = 4*pi* alpha^3 * rho_0 * CachedPoly.mass(xi_range)  #mass profile
-        #mass_r = mass_r .+ M_NS1    #add in central point mass
+        M_DM = mass_interp(R_DM)
 
-        rho_interp = linear_interpolation(rs, rho_r, extrapolation_bc=Flat())
-        mass_interp = linear_interpolation(rs, mass_r, extrapolation_bc=Flat())
-
-        return RealPolytrope_wK(rs,R_DM,rho_r,mass_r,K,rho_interp,mass_interp)
-
+        return RealPolytrope(rs,R_DM,rho_r,M_DM_r,rho_interp,mass_interp,M_DM)
     end
 
     """Recalls polytrope if previously calculated, otherwise calculates and cashes the polytrope before returning it"""

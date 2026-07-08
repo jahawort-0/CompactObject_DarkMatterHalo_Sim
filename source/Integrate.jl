@@ -36,12 +36,12 @@ module Integrate
 
     #Of these, I expect A, poly_shell, mode, and period_calc to have considerable effect on the evolution of the system
 
-    function initial_circular_orbit(M_NS1::Float64, M_NS2::Float64, M_DM::Float64, RealPoly::Any; optional=optional_default)::Vector{Float64}
+    function initial_circular_orbit(M_DM::Float64, M_NS1::Float64, M_NS2::Float64, RealPoly::Any; optional=optional_default)::Vector{Float64}
     
         #returns keplerian orbital parameters, theta, at initial Roche Lobe overflow
 
-        a=Math.RL_contact(M_NS1,M_NS2,M_DM,RealPoly;optional=optional)
-        J=Math.circular_J(a,(M_NS1 + M_DM),M_NS2)
+        a=Math.RL_contact(M_DM,M_NS1,M_NS2,RealPoly;optional=optional)
+        J=Math.circular_J(a,M_DM,M_NS1,M_NS2)
         R_DM=RealPoly.R_DM
         return([Float64(a), Float64(M_DM), Float64(M_NS1), Float64(M_NS2), Float64(R_DM), Float64(J), 0.])
     end
@@ -555,50 +555,64 @@ module Integrate
 
     ## New DM halo functions
 
-    function halo_problem!(du,u,p,t)
+    a_min = Float64(50)
+    function condition(u, t, integrator)
+        u[1] - a_min          # Trigger when a = 0
+    end
+    function affect!(integrator)
+        integrator.u[1] = a_min   # Optional: make the final value exactly zero
+        terminate!(integrator)
+    end
+    cb = ContinuousCallback(condition, affect!) #creates termination condition for a = 0
+
+    function halo_problem_old!(du,u,p,t)
         #--------Setup inputs ---------
 
         #du = [da_dt, dM_DM_dt, dM_NS1_dt, dM_NS2_dt, dphase_dt, dJ_dt]
         # u = [    a,     M_DM,     M_NS1,     M_NS2,     phase,     J]
         # p = [mass_r]
-        a = u[1];   M_DM = u[2];    M_NS1 = u[3];   M_NS2 = u[4]
+        a = u[1];   M_DM = u[2];    M_NS1 = u[3];   M_NS2 = u[4];   phase = u[5];   J = u[6]
         mass_r = p[1]
 
-        #--------Setup the model of the system, makes many assumptions ---------
 
-        R_RL = Math.Roche_Limit(a, (M_NS1 + M_DM), M_NS2)
+
+        #--------Setup useful values ---------
+
+        #R_RL = Math.Roche_Limit(a, (M_NS1 + M_DM), M_NS2)
 
         Mtot = M_NS1 + M_NS2 + M_DM
         mu = (M_NS1 + M_DM)*M_NS1/Mtot  #reduced mass
 
         P = Math.period(a, Mtot)
 
-        dM_DM_dt = -1e-200
-        #dM_DM_dt = -10/P * (M_DM - mass_r(R_RL))  #using A = 10
-        #This works under the assumption that the change in mass is monotonic
-        #For more complicated mass transfer (second halo forming) we need a more complex treatment
+        #---------- Model of the system----------
+
+        theta = []
+
+        dM_NS1_dt = Math.dM_NS1(M_NS1)
+
+        dM_NS2_dt = Math.dM_NS2(M_NS2)
+
+        dM_DM_dt = Math.decretion_rate(a, M_DM, M_NS1, M_NS2)
         
-        da_rr_dt = -64 * Math.G^3 * mu * Mtot^2 / (5*Math.c^5*a^3)  #Simplified radiation reaction model
-
-        dM_NS2_dt = 0 #Simple assumption that removed mass will leave system, none remains
-
-        beta = abs(dM_NS2_dt/dM_DM_dt)
-        gamma = (M_NS1+M_DM)/M_NS2  #isotropic reemission 
-
+        beta = Math.beta(a, M_DM, M_NS1, M_NS2)
+        gamma = Math.gamma(M_DM, M_NS1, M_NS2)  #isotropic reemission 
         da_mt_dt = -2*a * dM_DM_dt/(M_NS1+M_DM) * (1- beta*(M_DM+M_NS1)/M_NS2 -
         (1-beta)*(gamma+0.5) * (M_NS1+M_DM)/Mtot)   #effect of mass transfer on seperation
-
+        da_rr_dt = -64 * Math.G^3 * mu * Mtot^2 / (5*Math.c^5*a^3)  #Simplified radiation reaction model
+        #da_rr_dt = -4*a*Math.G/(5*J*Math.c^5) * 
         da_dt = da_rr_dt + da_mt_dt
-
+       
+        #dphase_dt = Math.dphase(J,a,M_DM, M_NS1, M_NS2)
         dphase_dt = 2*pi/P
 
-        dJ_dt = 0  #No change in angular momentum, not a very good assumption
-
-        dM_NS1_dt = 0
-
-        dM_NS2_dt = 0 
-
-
+        if a<= 0
+            dJ_dt = 0
+        else
+            # dJ_dt = Math.J_dot(J, a, M_DM, M_NS1, M_NS2)
+            dJ_dt = mu*Math.G/2 / ((Math.G*Mtot*a)^(1/2)) * (Mtot*da_dt + a*(dM_DM_dt+dM_NS1_dt+dM_NS2_dt))
+        end
+        
         #---------Define outputs ----------
         du[1] = da_dt
         du[2] = dM_DM_dt
@@ -608,13 +622,84 @@ module Integrate
         du[6] = dJ_dt
     end
 
+    function halo_problem!(du,u,p,t)
+        #--------Setup inputs ---------
+
+        #du = [da_dt, dM_DM_dt, dM_NS1_dt, dM_NS2_dt, dphase_dt, dJ_dt]
+        # u = [    a,     M_DM,     M_NS1,     M_NS2,     phase,     J]
+        # p = [mass_r]
+        a = u[1];   M_DM = u[2];    M_NS1 = u[3];   M_NS2 = u[4];   phase = u[5];   J = u[6]
+        mass_r = p[1]
+
+        R_WD = 1
+
+        theta = [a, M_DM, M_NS1, M_NS2, R_WD, J, phase]
+
+        dtheta,t_ddI,t_dddI = Math.ddI_dddI_from_theta(theta)
+        ddI_xx = t_ddI[1,1]; ddI_xy = t_ddI[1,2]
+        dddI_xx = t_dddI[1,1]; dddI_xy = t_dddI[1,2]
+
+        da_mt_dt = dtheta[1]
+        ESN_Iterm = 2*(ddI_xx*dddI_xy - ddI_xy*dddI_xx)
+        da_rr_dt = -4*a*Math.G/(5*J*Math.c^5) * ESN_Iterm
+        da_dt = da_mt_dt + da_rr_dt
+
+        dJ_dt = -2*Math.G/(5*Math.c^5) * ESN_Iterm
+
+
+        #--------Setup useful values ---------
+
+        # #R_RL = Math.Roche_Limit(a, (M_NS1 + M_DM), M_NS2)
+
+        # Mtot = M_NS1 + M_NS2 + M_DM
+        # mu = (M_NS1 + M_DM)*M_NS1/Mtot  #reduced mass
+
+        # P = Math.period(a, Mtot)
+
+        # #---------- Model of the system----------
+
+        # theta = []
+
+        # dM_NS1_dt = Math.dM_NS1(M_NS1)
+
+        # dM_NS2_dt = Math.dM_NS2(M_NS2)
+
+        # dM_DM_dt = Math.decretion_rate(a, M_DM, M_NS1, M_NS2)
+        
+        # beta = Math.beta(a, M_DM, M_NS1, M_NS2)
+        # gamma = Math.gamma(M_DM, M_NS1, M_NS2)  #isotropic reemission 
+        # da_mt_dt = -2*a * dM_DM_dt/(M_NS1+M_DM) * (1- beta*(M_DM+M_NS1)/M_NS2 -
+        # (1-beta)*(gamma+0.5) * (M_NS1+M_DM)/Mtot)   #effect of mass transfer on seperation
+        # da_rr_dt = -64 * Math.G^3 * mu * Mtot^2 / (5*Math.c^5*a^3)  #Simplified radiation reaction model
+        # #da_rr_dt = -4*a*Math.G/(5*J*Math.c^5) * 
+        # da_dt = da_rr_dt + da_mt_dt
+       
+        # #dphase_dt = Math.dphase(J,a,M_DM, M_NS1, M_NS2)
+        # dphase_dt = 2*pi/P
+
+        # if a<= 0
+        #     dJ_dt = 0
+        # else
+        #     # dJ_dt = Math.J_dot(J, a, M_DM, M_NS1, M_NS2)
+        #     dJ_dt = mu*Math.G/2 / ((Math.G*Mtot*a)^(1/2)) * (Mtot*da_dt + a*(dM_DM_dt+dM_NS1_dt+dM_NS2_dt))
+        # end
+        
+        #---------Define outputs ----------
+        du[1] = da_dt
+        du[2] = dtheta[2]
+        du[3] = dtheta[3]
+        du[4] = dtheta[4]
+        du[5] = dtheta[5]
+        du[6] = dJ_dt
+    end
+
     function integrate_halo(u0,p,tspan)
         #u0: Initial conditions
         #p: system parameters
         #tspan: time over which we integrate
     
         prob = ODEProblem(halo_problem!, u0, tspan, p)
-        sol = solve(prob)
+        sol = solve(prob; callback = cb)
         #sol = [M_DM, a, phase]
         return(sol)
     end
