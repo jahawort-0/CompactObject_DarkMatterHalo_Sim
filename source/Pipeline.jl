@@ -301,14 +301,16 @@ module Pipeline
         out[:,5:8].=full_out_test[:,1:4]  # a, Masses  
         out[:,9].=full_out_test[:,5]    #phase
         for i in 1:length(full_out_test[:,1])
-            out[i,2]=2/Math.period(full_out_test[i,4],full_out_test[i,1]+full_out_test[i,2]+full_out_test[i,3]) #frequency
-            zero_theta=zeros(6)
-            #zero_theta[1:5].=full_out_test[i,1:5]
-            zero_theta[1]=full_out_test[i,1] #a
-            zero_theta[2]=(full_out_test[i,1].+full_out_test[i,2]) #M_DM+M_NS1
-            zero_theta[3]=full_out_test[i,4]   #M_NS2
-            zero_theta[4]=full_out_test[i,7]     #R_WD??
-            zero_theta[5]=full_out_test[i,6]     #J
+            out[i,2]=2*pi/Math.period(full_out_test[i,1],full_out_test[i,2]+full_out_test[i,3]+full_out_test[i,4]) #frequency
+            zero_theta=zeros(7)
+            #theta = [a, M_DM, M_NS1, M_NS2, R_WD, J, phase]
+            zero_theta[1]=full_out_test[i,1]    #a
+            zero_theta[2]=full_out_test[i,2]    #M_DM
+            zero_theta[3]=full_out_test[i,3]    #M_NS1
+            zero_theta[4]=full_out_test[i,4]    #M_NS2
+            zero_theta[5]=full_out_test[i,7]    #R_WD??
+            zero_theta[6]=full_out_test[i,6]    #J
+            zero_theta[7]=full_out_test[i,5]    #phase
             t_ddI=Math.ddI_dddI_from_theta(zero_theta; ddI_only=true)
             out[i,3:4].=t_ddI[2][1:2]
         end
