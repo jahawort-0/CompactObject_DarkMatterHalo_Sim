@@ -226,6 +226,10 @@ module Polytrope
         rho_interp = linear_interpolation(rs, rho_r, extrapolation_bc=Flat())
         mass_interp = linear_interpolation(rs, mass_r, extrapolation_bc=Flat())
 
+        df = DataFrame([rs,rho_r,mass_r], ["rs", "rho_r", "mass_r"])
+
+        CSV.write("Polytrope_sol.csv", df)
+
         return RealPolytrope_wK(rs,R_DM,rho_r,mass_r,K,rho_interp,mass_interp,M_DM)
 
     end
@@ -327,7 +331,7 @@ module Polytrope
 
         u0_out = sol1.u[end]
         prob2 = ODEProblem(halo_polytrope_problem_outside!,u0_out,rspan_out,p)
-        sol2 = solve(prob2, abstol = 1e-12, reltol = 1e-12)
+        sol2 = solve(prob2, abstol = 1e-12, reltol = 1e-12, dtmax = 0.01)
 
         return(sol1, sol2)
     end
@@ -339,7 +343,7 @@ module Polytrope
         sol_in,sol_out = halo(p,rspan)
 
         rs_in = LinRange(0,R_NS1, 1000)
-        rs_out = LinRange(R_NS1,rend, 1000)
+        rs_out = vcat(LinRange(R_NS1,R_NS1+100, 500),LinRange(R_NS1+100,2000, 1000)[2:end])
         rs = vcat(rs_in,rs_out[2:end])
 
         sol_in_interp = sol_in(rs_in)
@@ -379,10 +383,10 @@ module Polytrope
         frac = 0.95
         # examine change in enclose mass
         dM = diff(M_DM_r_out)
-        plateau = findfirst(abs.(dM) .< 1e-12)  #will return spot where enclosed mass platuaus
+        plateau = findfirst(abs.(dM) .< 1e-12)  #will return spot where enclosed mass plateaus
 
         if plateau !== nothing  #if plateau is in the range we are searching
-            R_DM = rs_out[plateau+1]
+            R_DM = rs_out[plateau]
         else        #there may not be a platueau within the region we search, take the 95% mass boundary
             M_target = frac * M_DM_r_out[end]
             radius_mass_interp = linear_interpolation(M_DM_r_out, rs_out)
@@ -390,6 +394,22 @@ module Polytrope
         end
 
         M_DM = mass_interp(R_DM)
+
+        ind = findfirst(==(1),rs.>R_DM)  #clear halo outside 'max radius'
+        rho_r = rho_r[1:ind];       rho_r[end] = 0
+        M_DM_r = M_DM_r[1:ind];     M_DM_r[end] = M_DM
+        rs = rs[1:ind]
+
+        rho_r = rho_r[1:end-1]
+        M_DM_r = M_DM_r[1:end-1]
+        rs = rs[1:end-1]
+
+        rho_interp = linear_interpolation(rs, rho_r, extrapolation_bc=Flat())
+        mass_interp = linear_interpolation(rs, M_DM_r, extrapolation_bc=Flat())
+
+        df = DataFrame([rs,rho_r,M_DM_r], ["rs", "rho_r", "mass_r"])
+
+        CSV.write("Polytrope_sol.csv", df)
 
         return RealPolytrope(rs,R_DM,rho_r,M_DM_r,rho_interp,mass_interp,M_DM)
     end

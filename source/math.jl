@@ -30,7 +30,8 @@ module Math
     # A and mode are physically meaningful parameters while poly_shell and period_calc are simply alternate ways to calculate the same values
     #Default values of `true` on these latter parameters are the preferred means of calculation
 
-    const optional_default = (mu_e = 2.0, equation = 1, A = 10.0, poly_shell = false, a_ring_frac = 1.0, mode = :isotropic, eta_acc = 0.1, period_calc = true)
+    const optional_default = (mu_e = 2.0, equation = 1, A = 10.0, poly_shell = false, a_ring_frac = 1.0, mode = :isotropic, eta_acc = 0.1, period_calc = true, 
+    mass_transfer = false)
 
     """
         Returns the natural radius of a white dwarf.
@@ -39,8 +40,12 @@ module Math
         ```
         M_WD = mass of the white dwarf.
     """
-    function R0_WD(M_WD;optional=optional_default) 
-        return 0
+    function R0_DM(M_DM;optional=optional_default) 
+        file = CSV.File("Polytrope_sol.csv")
+        r = file.rs; mass = file.mass_r
+        r_mass = linear_interpolation(mass, r, extrapolation_bc=Flat())
+
+        return r_mass(M_DM)
     end
     
     """
@@ -75,7 +80,7 @@ module Math
     	#at a separation of distance a 
     	
     	q=M_1/M_NS2
-        q_2_3rds = q^(2.0/3.0)
+        q_2_3rds = abs(q)^(2.0/3.0)     #abs value included to allow function to run, call isoutofdomain will force function to rerun for M_DM<0
     	return(a * 0.49*q_2_3rds/(0.6*q_2_3rds+log(1.0+cbrt(q))))
     end
     
@@ -113,20 +118,27 @@ module Math
         If Roche lobe is greater than radius of white dwarf, returns 0.
     """
     function decretion_rate(a, M_DM, M_NS1, M_NS2;optional=optional_default) 
-    
-    	# #@assert R_WD > 0 
+        #@assert M_DM > 0
+        if optional.mass_transfer == true
+            M_1 = M_DM + M_NS1
+            R_RL = Roche_Limit(a,M_1,M_NS2)
+            R_DM = R0_DM(M_DM)
+            if R_RL>R_DM
+                return 1e-100
+            elseif M_DM<=0
+                return 0.
+            else
+                file = CSV.File("Polytrope_sol.csv")
+                r = file.rs; mass = file.mass_r
+                mass_r = linear_interpolation(r, mass, extrapolation_bc=Flat())
 
-        # file = CSV.File("Polytrope_sol.csv")
-        # r = file.rs; mass = file.mass_r
-        # mass_r = linear_interpolation(r, mass, extrapolation_bc=Flat())
-    
-        # M_1 = M_DM + M_NS1
-        # R_RL = Roche_Limit(a,M_1,M_NS2)
-
-        # P = period(a, M_DM + M_NS1 + M_NS2)
+                P = period(a, M_DM + M_NS1 + M_NS2)
             
-        # return -10/P * (M_DM - mass_r(R_RL))
-        return 1e-100
+                return -10/P * (M_DM - mass_r(R_RL))
+            end
+        elseif optional.mass_transfer == false
+            return 1e-100
+        end
     end
     
     """
@@ -183,33 +195,41 @@ module Math
         return 0
     end
 
-    function dM_NS2(M_NS2;optional=optional_default) 
-        return 0    #assuming no matter falls on NS
+    function dM_NS2(a, M_DM, M_NS1, M_NS2;optional=optional_default) 
+
+        frac = 0.1
+        return -frac * decretion_rate(a, M_DM, M_NS1, M_NS2;optional=optional)
+        # return 0    #assuming no matter falls on NS
     end
     
     
     """
         Returns the (fraction of) mass accreted onto the neutron star over the mass lost from the white dwarf per unit time.
     """
-    function beta(a, M_DM, M_NS1, M_NS2;optional=optional_default)         
+    function beta(a, M_DM, M_NS1, M_NS2;optional=optional_default)   
         M_DM_dot = -decretion_rate(a, M_DM, M_NS1, M_NS2; optional=optional)
-        M_NS2_dot = dM_NS2(M_NS2)
-        return abs( M_NS2_dot/ M_DM_dot)
+        if abs(M_DM_dot)< 1e-60
+            return 0
+        else     
+            M_NS2_dot = dM_NS2(a, M_DM, M_NS1, M_NS2)
+            return abs( M_NS2_dot/ M_DM_dot)
+        end
     end
     
     
     """
         Returns the rate of total angular momentum loss of the binary due to non-conservative mass transfer.
     """
-    function J_dot(J, a, M_DM, M_NS1, M_NS2;optional=optional_default)         
+    function J_dot(J, a, M_DM, M_NS1, M_NS2;optional=optional_default) 
+        #only the change due to mass transfer, RR contribution calculated outside        
         g = gamma(M_DM, M_NS1, M_NS2; optional=optional)
         b = beta(a, M_DM, M_NS1, M_NS2; optional=optional)
     
     	#@assert b <= 1.0 
     
         M_DM_dot = decretion_rate(a, M_DM, M_NS1, M_NS2; optional=optional)
-        #return J * g * (1.0 - b) * M_WD_dot / (M_WD + M_NS)
-        return 0    #Bad assumption
+        return J * g * (1.0 - b) * M_DM_dot / (M_DM + M_NS1 + M_NS2)
+        # return 0    #Jdot included in Integrate.jl
     end
 
     """
@@ -305,11 +325,12 @@ module Math
     """ 
         Returns rate of change of orbital phase of the white dwarf.
     """
-    function dphase(J,a,M_DM, M_NS1, M_NS2;optional=optional_default) 
+    function dphase(J, a, M_DM, M_NS1, M_NS2;optional=optional_default) 
         if optional.period_calc #Calculates change in period under the adiabatic approximation
             return (2.0*π/period(a, M_DM+M_NS1+M_NS2))
         end
-        return(J/(a^2.0*mu(M_DM+M_NS1,M_NS2)))
+        #return(J/(a^2.0*mu(M_DM+M_NS1,M_NS2)))
+        return (2.0*π/period(a, M_DM+M_NS1+M_NS2))
         
     end  
     
@@ -406,7 +427,7 @@ module Math
         optional= (; optional..., A=T(optional.A), eta_acc=T(optional.eta_acc))
         
         a, M_DM, M_NS1, M_NS2, R_WD, J, phase = theta
-        return(dM_NS2(M_NS2; optional=optional))
+        return(dM_NS2(a, M_DM, M_NS1, M_NS2; optional=optional))
     end
     
     """Wrapper function for time derivative of white dwarf radius."""
