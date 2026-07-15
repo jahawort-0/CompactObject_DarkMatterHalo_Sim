@@ -4,8 +4,8 @@ include("dependencies.jl")
 n = 5
 #rho_range_0 = [5e13, 6e13, 7e13, 8e13, 9e13, 1e14] #g/cm3  Nuclear density : 2.8e14
 #Krange = [2.5e10, 2.75e10, 3e10, 3.25e10, 3.5e10] 
-rho_range_0 = 10 .^(range(12,16,length = 50))
-Krange = 10 .^(range(9.8,12.3,length = 50))    
+rho_range_0 = 10 .^(range(13.6,15.2,length = 50))
+Krange = 10 .^(range(10,10.5,length = 50))    
 #rho_range_0 = 10 .^ [13.5, 13.6, 13.7, 13.8, 13.9]
 #Krange = 10 .^ [11.1, 11.2, 11.3, 11.4, 11.5]
 rho_range = Math.cgs_density_inv(rho_range_0)
@@ -17,7 +17,7 @@ M_DMs = zeros(Float64,length(Krange),length(rho_range))
 R_DMs = zeros(Float64,length(Krange),length(rho_range))
 valid_bit = zeros(Bool,length(Krange),length(rho_range))
 #radius_Mh = zeros(Float64,length(Krange),length(rho_range))       #Half mass radius
-profiles = Matrix{Tuple{Vector{Float64},Vector{Float64},Vector{Float64}}}(undef,length(Krange),length(rho_range))
+#profiles = Matrix{Tuple{Vector{Float64},Vector{Float64},Vector{Float64}}}(undef,length(Krange),length(rho_range))
 
 for Ki in range(1,length(Krange))
     for rhoi in range(1,length(rho_range))
@@ -33,7 +33,7 @@ for Ki in range(1,length(Krange))
 
         if output.rs[ind]<R_NS1
             valid_bit[Ki,rhoi] = 0
-        elseif output.R_DM>100
+        elseif output.R_DM>500
             valid_bit[Ki,rhoi] = 0
         else
             valid_bit[Ki,rhoi] = 1
@@ -42,7 +42,7 @@ for Ki in range(1,length(Krange))
         M_DMs[Ki,rhoi] = output.M_DM
         R_DMs[Ki,rhoi] = output.R_DM
 
-        profiles[Ki,rhoi] = ((output.rs), (output.rho_r), (output.mass_r))
+        #profiles[Ki,rhoi] = ((output.rs), (output.rho_r), (output.mass_r))
     end
 end
 #rho_0s = Math.cgs_density(rho_0s)
