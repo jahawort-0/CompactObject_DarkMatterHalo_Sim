@@ -2,8 +2,8 @@ include("dependencies.jl")
 
 ## Set parameters
 n = 5
-K = 2.7e10
-rho_0 = Math.cgs_density_inv(1.46666e14)
+K = 3.25e10
+rho_0 = Math.cgs_density_inv(9e13)
 #M_DM = 0.1
 M_NS1 = 1.4 #Solar masses
 R_NS1 = 12  #km

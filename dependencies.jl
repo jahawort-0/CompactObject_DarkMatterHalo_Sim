@@ -6,6 +6,7 @@ using BenchmarkTools
 #using Integrate
 using CSV, DataFrames, Interpolations
 using Plots
+using Plots.PlotMeasures
 using OrdinaryDiffEq
 using DifferentialEquations
 using Printf, DelimitedFiles
