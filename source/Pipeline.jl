@@ -499,7 +499,10 @@ module Pipeline
         println(M_DM - df_waveform.M_DM[end]," Solar masses of dark matter were removed in ", df_waveform.t[end], " seconds.")
     end
 
-
+    #Calculate GW strain 
+    function calc_strain(ddI,DL)
+        return (2*Math.G/(Math.c^4*DL)).*ddI
+    end
 
 
 
