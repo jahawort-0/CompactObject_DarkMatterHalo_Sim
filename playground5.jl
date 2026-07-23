@@ -1,17 +1,17 @@
 include("dependencies.jl")
 ## Set parameters
 #have been using K = 3.25e10, rho_0 = Math.cgs_density_inv(9e13)
+#Merger5 is for poster plotting, K = 2.7e10, rho_0 = Math.cgs_density_inv(1.46666e14), 99% halo
 n = 5.
-K = 2.7e10
-#K = 3.25e10
-rho_0 = Math.cgs_density_inv(1.46666e14)
-#rho_0 = Math.cgs_density_inv(9e13)
+#K = 10^10.45
+K = 3.25e10
+#rho_0 = Math.cgs_density_inv(10^14)rho_0 = Math.cgs_density_inv(9e13)
 #M_DM = 0.1
 M_NS1 = 1.4 #Solar masses
 R_NS1 = 12.  #km
 M_NS2 = 3. #Solar masses
 a_start = 200. #km
-filename = "Merger4_noDM.csv"
+filename = "Merger_10per_jeans2.csv"
 
 Pipeline.evolve_halo(n,K,rho_0,R_NS1,M_NS1,M_NS2,a_start,filename)
 ##

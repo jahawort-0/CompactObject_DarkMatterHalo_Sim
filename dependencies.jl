@@ -14,6 +14,8 @@ using ForwardDiff
 using LaTeXStrings
 using NamedArrays
 using ColorSchemes
+using FFTW
+
 
 #include("source/GW.jl")
 #include("source/install.jl")
