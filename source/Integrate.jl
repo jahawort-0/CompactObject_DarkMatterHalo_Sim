@@ -24,8 +24,8 @@ module Integrate
 
 
     #const M_ch=1.44 #Chandresekhar mass in M⊙
-    const optional_default = (mu_e = 2.0, equation = 1, A = 10.0, poly_shell = false, a_ring_frac = 1.0, mode = :isotropic, eta_acc = 0.1, period_calc = true, 
-    mass_transfer = false)
+    const optional_default = (mu_e = 2.0, equation = 1, A = 10.0, poly_shell = false, a_ring_frac = 1.0, mode = :jeans, eta_acc = 0.1, period_calc = true, 
+    mass_transfer = true)
     #`optional` contains optional parameters. In order, these optional parameters are:
     #mu_e=2.0:                     the chemical composition of the white dwarf (for CO/ONeMg, mu_e=2.0/2.35, respectively)
     #equation=1:                   choice of empirical equation for white dwarf mass vs. radius relation (1=Nauenberg/2=Eggleton

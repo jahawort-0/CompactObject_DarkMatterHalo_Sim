@@ -5,6 +5,7 @@ module Pipeline
     using DistributedArrays
     using CSV, DataFrames, Interpolations
     using Printf
+    using FFTW
     include("math.jl")
     include("save.jl")
     include("Integrate.jl")
@@ -480,7 +481,17 @@ module Pipeline
 
         # Intepolate the integration solution at regular timesteps for plotting
         t_a_min = integration_sol.t[end]    #solver quits once minimum seperation is reached, extract final time
-        times = vcat(range(0,stop=(t_a_min*0.97),length=800),range((t_a_min*0.95),t_a_min,length=201)[2:end])
+        #times = vcat(range(0,stop=(t_a_min*0.95),length=800),range((t_a_min*0.95),t_a_min,length=201)[2:end])
+        times = range(0,t_a_min,1000)
+        # times = Float64[]   #Variable timestep interpolation times, important for 
+        #     push!(t,0.0)
+        #     P = Math.period(circ_orbit[7], M1+M_NS2)
+        #     while t[end]<t_a_min
+        #         dt = (P/4)*(1-(t[end]/t_a_min))^(3/8)
+        #         push!(t,t[end]+dt)
+        #     end
+        #     push!(t,t_a_min)
+
         sol_interpolated=integration_sol(times)
 
         #Initialize the variables to be passed into quadrupole package
@@ -502,6 +513,21 @@ module Pipeline
     #Calculate GW strain 
     function calc_strain(ddI,DL)
         return (2*Math.G/(Math.c^4*DL)).*ddI
+    end
+
+    #FFT GW strain
+    function FT_strain(h_t,times)
+        FT_h = fft(h_t);              #FFT of strain
+        dt = times[2] - times[1];          # time step
+        fs = 1/dt;                    # sampling frequency
+        N = length(h_t);
+
+        freqs = (0:N-1) * (fs/N);
+        half = 1:div(N,2)
+        freqs = freqs[half]
+        FT_h = FT_h[half]
+        FT_h = real.(FT_h)
+        return(freqs,FT_h)
     end
 
 

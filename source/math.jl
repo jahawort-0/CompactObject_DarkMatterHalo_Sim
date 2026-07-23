@@ -5,6 +5,7 @@ module Math
     using Base.Threads
     using CSV
     using Interpolations
+    
 
     # Constants
     const c::Float64 = 2.998e5    # km/s
@@ -12,6 +13,7 @@ module Math
     const period_factor::Float64 = sqrt(4.0 * π^2 / G)
     const dJ_rr_factor::Float64 = -2.0 * G / (5.0 * c^5)
     const Mpc_to_km_factor = 2.0*G*3.2e-20/c^4. #for conversion from Mpc to km
+    const Mpc_to_km = 3.085677581e20 
     const M_ch=1.44 #Chandresekhar mass in M⊙
 
     include("polytrope.jl")
@@ -30,8 +32,8 @@ module Math
     # A and mode are physically meaningful parameters while poly_shell and period_calc are simply alternate ways to calculate the same values
     #Default values of `true` on these latter parameters are the preferred means of calculation
 
-    const optional_default = (mu_e = 2.0, equation = 1, A = 10.0, poly_shell = false, a_ring_frac = 1.0, mode = :isotropic, eta_acc = 0.1, period_calc = true, 
-    mass_transfer = false)
+    const optional_default = (mu_e = 2.0, equation = 1, A = 10.0, poly_shell = false, a_ring_frac = 1.0, mode = :jeans, eta_acc = 0.1, period_calc = true, 
+    mass_transfer = true)
 
     """
         Returns the natural radius of a white dwarf.

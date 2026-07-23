@@ -380,7 +380,7 @@ module Polytrope
 
         #M_DM = NaN #Mtot
 
-        frac = 0.95
+        frac = 0.99
         # examine change in enclose mass
         dM = diff(M_DM_r_out)
         plateau = findfirst(abs.(dM) .< 1e-12)  #will return spot where enclosed mass plateaus
