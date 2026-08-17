@@ -32,8 +32,8 @@ module Math
     # A and mode are physically meaningful parameters while poly_shell and period_calc are simply alternate ways to calculate the same values
     #Default values of `true` on these latter parameters are the preferred means of calculation
 
-    const optional_default = (mu_e = 2.0, equation = 1, A = 10.0, poly_shell = false, a_ring_frac = 1.0, mode = :jeans, eta_acc = 0.1, period_calc = true, 
-    mass_transfer = true)
+    const optional_default = (mu_e = 2.0, equation = 1, A = 10.0, poly_shell = false, a_ring_frac = 1.0, mode = :isotropic, eta_acc = 0.1, period_calc = true, 
+    mass_transfer = false)
 
     """
         Returns the natural radius of a white dwarf.
@@ -83,7 +83,8 @@ module Math
     	
     	q=M_1/M_NS2
         q_2_3rds = abs(q)^(2.0/3.0)     #abs value included to allow function to run, call isoutofdomain will force function to rerun for M_DM<0
-    	return(a * 0.49*q_2_3rds/(0.6*q_2_3rds+log(1.0+cbrt(q))))
+        oneplus_cbrtq = complex(1.0+cbrt(q))
+    	return(a * 0.49*q_2_3rds/(0.6*q_2_3rds+real(log(oneplus_cbrtq))))
     end
     
     
@@ -102,7 +103,7 @@ module Math
             return NaN
         else
             #equivalent to sqrt(4.0 * π^2 * a^3 / (G * Mtot))
-            return period_factor * sqrt(a^3.0 / M_tot)
+            return period_factor * real(sqrt(complex(a^3.0 / M_tot)))
         end
     end
     
@@ -199,7 +200,7 @@ module Math
 
     function dM_NS2(a, M_DM, M_NS1, M_NS2;optional=optional_default) 
 
-        frac = 0.1
+        frac = 1
         return -frac * decretion_rate(a, M_DM, M_NS1, M_NS2;optional=optional)
         # return 0    #assuming no matter falls on NS
     end

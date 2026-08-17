@@ -24,8 +24,8 @@ module Integrate
 
 
     #const M_ch=1.44 #Chandresekhar mass in M⊙
-    const optional_default = (mu_e = 2.0, equation = 1, A = 10.0, poly_shell = false, a_ring_frac = 1.0, mode = :jeans, eta_acc = 0.1, period_calc = true, 
-    mass_transfer = true)
+    const optional_default = (mu_e = 2.0, equation = 1, A = 10.0, poly_shell = false, a_ring_frac = 1.0, mode = :isotropic, eta_acc = 0.1, period_calc = true, 
+    mass_transfer = false)
     #`optional` contains optional parameters. In order, these optional parameters are:
     #mu_e=2.0:                     the chemical composition of the white dwarf (for CO/ONeMg, mu_e=2.0/2.35, respectively)
     #equation=1:                   choice of empirical equation for white dwarf mass vs. radius relation (1=Nauenberg/2=Eggleton
@@ -38,14 +38,14 @@ module Integrate
 
     #Of these, I expect A, poly_shell, mode, and period_calc to have considerable effect on the evolution of the system
 
-    function initial_circular_orbit(M_DM::Float64, M_NS1::Float64, M_NS2::Float64, a_0::Float64, RealPoly::Any; optional=optional_default)::Vector{Float64}
+    function initial_circular_orbit(M_DM::Float64, M_NS1::Float64, M_NS2::Float64, RealPoly::Any; optional=optional_default)::Vector{Float64}
     
         #returns keplerian orbital parameters, theta, at initial Roche Lobe overflow
 
         a_RL=Math.RL_contact(M_DM,M_NS1,M_NS2,RealPoly;optional=optional)
-        J=Math.circular_J(a_0,M_DM,M_NS1,M_NS2)
+        J=Math.circular_J(a_RL,M_DM,M_NS1,M_NS2)
         R_DM=RealPoly.R_DM
-        return([Float64(a_0), Float64(M_DM), Float64(M_NS1), Float64(M_NS2), Float64(R_DM), Float64(J), Float64(a_RL), 0.])
+        return([Float64(a_RL), Float64(M_DM), Float64(M_NS1), Float64(M_NS2), Float64(R_DM), Float64(J), 0.])
     end
     
     #"Below is the heart of the integration process"
@@ -555,7 +555,7 @@ module Integrate
         return pairs
     end
 
-    ## New DM halo functions
+""" New DM halo functions   """
 
     a_min = Float64(12)
     function condition(u, t, integrator)

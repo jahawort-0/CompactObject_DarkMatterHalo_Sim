@@ -378,7 +378,6 @@ module Polytrope
             # M_out = 4*pi*rho0^((93*Γ-4)/2) * (K*Γ/(4*pi*G*(Γ-1)))^(3/2) * (sqrt(3) - ((R_NS1/α)^2 *abs((Γ-1) * (rho_surf/rho0)^(Γ-2) * α / rho0 * rho_prime)))
             # Mtot = M_in + M_out
 
-        #M_DM = NaN #Mtot
 
         frac = 0.99
         # examine change in enclose mass
