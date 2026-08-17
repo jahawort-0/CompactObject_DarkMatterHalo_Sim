@@ -1,7 +1,7 @@
 include("dependencies.jl")
 
 ##
-file1 = CSV.File("Merger_noDM.csv")    #no DM mass transfer
+file1 = CSV.File("Merger8_noDM.csv")    #no DM mass transfer
     t1 = file1.t
     freq1 = file1.f
     ddI_p1 = file1.ddI_p
@@ -9,7 +9,7 @@ file1 = CSV.File("Merger_noDM.csv")    #no DM mass transfer
     a1 = file1.a
     M_DM1 = file1.M_DM
 
-file2 = CSV.File("Merger_10per_iso.csv")     #10% DM accreted, isotropic    
+file2 = CSV.File("Merger8_10per_iso.csv")     #10% DM accreted, isotropic    
     t2 = file2.t 
     freq2 = file2.f
     ddI_p2 = file2.ddI_p
@@ -17,7 +17,7 @@ file2 = CSV.File("Merger_10per_iso.csv")     #10% DM accreted, isotropic
     a2 = file2.a
     M_DM2 = file2.M_DM
 
-file3 = CSV.File("Merger_10per_jeans2.csv")    #10% DM accreted, jeans
+file3 = CSV.File("Merger8_10per_jeans.csv")    #10% DM accreted, jeans
     t3 = file3.t 
     freq3 = file3.f
     ddI_p3 = file3.ddI_p
@@ -26,7 +26,7 @@ file3 = CSV.File("Merger_10per_jeans2.csv")    #10% DM accreted, jeans
     a3 = file3.a
     M_DM3 = file3.M_DM
 
-file4 = CSV.File("Merger_100per.csv")    #100% DM accreted
+file4 = CSV.File("Merger8_100per.csv")    #100% DM accreted
     t4 = file4.t 
     freq4 = file4.f
     ddI_p4 = file4.ddI_p
@@ -41,15 +41,15 @@ dphase4 = phase4 .- phase1interp(freq4)
 p1 = plot(freq1, phase1, label = "no DM", xlabel = "GW Frequency [Hz]", ylabel = "Phase [rad]", dpi = 300, xlim = (0,1100))
 plot!(p1, freq2, phase2, label = "10%, isotropic")
 plot!(p1, freq3, phase3, label = "10%, Jeans")
-plot!(p1, freq4, phase4, label = "100% accretion")
+plot!(p1, freq4, phase4, label = "100% accretion") 
 
 #dphase vs freq
-p2 = plot(freq2, dphase2, label = L"\mathrm{Isotropic}", xlabel = L"\mathrm{GW} f\ \mathrm{[Hz]}", ylabel = L"\Delta \phi\ \mathrm{[rad]}", dpi = 500, xlim = (150,1100),color = cb_palette[2],
+p2 = plot(freq2, dphase2, label = L"\mathrm{Isotropic}", xlabel = L"\mathrm{GW} f\ \mathrm{[Hz]}", ylabel = L"\Delta \phi\ \mathrm{[rad]}", dpi = 500, xlim = (0,1100),color = cb_palette[2],
 titlefontsize=16,guidefontsize=16,tickfontsize=14,legendfontsize=10,linestyle=:dash, linewidth=3, size=(800,400),
 bottom_margin=15px,left_margin=15px)
 plot!(p2, freq3, dphase3, label = L"\mathrm{Jeans}", color = cb_palette[1],linestyle=:solid, linewidth=3)
 plot!(p2, freq4, dphase4, label = L"100\%\ \mathrm{accretion}", color = cb_palette[3],linestyle=:dot, linewidth=3)
-annotate!(p2, 280, 6.7, L"K=3.25\times 10^{10}",10)
+annotate!(p2, 280, 8, L"K=3.25\times 10^{10}",10)
 annotate!(p2, 305, 5.9, L"\rho _0=9\times 10^{13}\ \mathrm{g/cm^3}",10)
 
 #ddI vs time
@@ -64,10 +64,10 @@ plot!(p4, t2, freq2, label = "10%, isotropic")
 plot!(p4, t3, freq3, label = "10%, Jeans")
 plot!(p4, t4, freq4, label = "100% accretion")
 
-display(p1) #phase vs freq
+#display(p1) #phase vs freq
 display(p2) #dphase vs freq
-display(p3) #ddI vs time
-display(p4) #freq vs time
+#display(p3) #ddI vs time
+#display(p4) #freq vs time
 ##
 
 p5 = plot(t3,a3, xlabel = L"t\ \mathrm{[s]}", ylabel = L"a\ \mathrm{[km]}",dpi = 500,label="with DM",color = cb_palette[1],
@@ -120,12 +120,3 @@ top_margin=0px, left_margin=10px)
 annotate!(p11,35,0.195,"NS surface")
 
 display(p11)
-
-## GW strain
-DL = 1 #Mpc
-hp_t = Pipeline.calc_strain(ddI_p3,(DL*Math.Mpc_to_km))
-
-plot(t3,hp_t)
-
-freqs,FT_h = Pipeline.FT_strain(hp_t,t3)
-plot(freqs,FT_h,xlabel = "frequency [Hz]", ylabel = "Amplitude",dpi=200)

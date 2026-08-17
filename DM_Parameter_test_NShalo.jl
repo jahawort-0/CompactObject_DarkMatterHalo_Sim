@@ -41,7 +41,7 @@ CSV.write("heatmap_Rs.csv",DataFrame(R_DMs, :auto))
 CSV.write("heatmap_Ms.csv",DataFrame(M_DMs, :auto))
 
 
-##Heatmap
+##Heatmap, generate nice plot for poster
 halo_bit = trues(size(M_DMs))
 halo_bit = (R_DMs .> R_NS1)
 
